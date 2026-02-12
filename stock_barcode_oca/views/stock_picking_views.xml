@@ -1,0 +1,27 @@
+<odoo>
+    <record id="action_stock_barcode_interface" model="ir.actions.client">
+        <field name="name">Scanner</field>
+        <field name="tag">stock_barcode_oca.BarcodeInterface</field>
+        <field name="target">fullscreen</field>
+    </record>
+
+    <record id="view_picking_form_barcode" model="ir.ui.view">
+        <field name="name">stock.picking.form.barcode</field>
+        <field name="model">stock.picking</field>
+        <field name="inherit_id" ref="stock.view_picking_form" />
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <button
+                    name="action_open_barcode_interface"
+                    type="object"
+                    class="oe_stat_button"
+                    icon="fa-barcode"
+                >
+                    <div class="o_field_widget o_stat_info">
+                        <span class="o_stat_text">Scanner</span>
+                    </div>
+                </button>
+            </xpath>
+        </field>
+    </record>
+</odoo>

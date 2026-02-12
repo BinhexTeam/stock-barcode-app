@@ -1,0 +1,284 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+    <t t-name="stock_barcode_oca.BarcodeInterface">
+        <div class="stock_barcode_interface">
+            <!-- HEADER -->
+            <div class="barcode_header">
+                <button
+                    class="btn btn-secondary barcode_close_btn"
+                    t-on-click="onClose"
+                >
+                    <i class="fa fa-times" />
+                </button>
+                <div class="barcode_header_title">
+                    <h3 class="barcode_title" t-esc="state.pickingName" />
+                </div>
+                <button
+                    class="btn btn-primary barcode_scan_btn"
+                    t-on-click="onScanWithCamera"
+                    title="Camera Scan"
+                >
+                    <i class="fa fa-barcode" />
+                </button>
+            </div>
+
+            <!-- SCANNING GUIDE AREA -->
+            <div
+                class="barcode_scanning_guide"
+                t-if="state.profileConfig.scanning_sequence.length > 0"
+            >
+                <!-- INSTRUCTION CARD (estilo tarjeta producto, color diferente) -->
+                <div class="instruction_card">
+                    <div class="instruction_text">
+                        <i class="fa fa-info-circle" style="margin-right: 8px;" />
+                        <span t-esc="state.scanInstructions or 'Scan next code'" />
+                    </div>
+                </div>
+
+                <!-- STEPS (simple, 3 colores, clickeable) -->
+                <div
+                    class="sequence_steps"
+                    t-ref="stepsContainer"
+                    t-if="state.profileConfig.scanning_sequence.length > 0"
+                >
+                    <t
+                        t-foreach="state.profileConfig.scanning_sequence"
+                        t-as="step"
+                        t-key="step.id"
+                    >
+                        <div
+                            t-attf-class="step_block step_{{step.step_type}} {{state.currentStepId === step.id ? 'active' : ''}}"
+                            t-on-click="() => this.onForceStep(step.id)"
+                        >
+                            <span t-esc="step.name" />
+                        </div>
+                    </t>
+                </div>
+            </div>
+
+            <!-- CONTENT (tarjetas de producto) -->
+            <div class="barcode_content">
+                <div t-if="state.moveLines.length === 0" class="empty_state">
+                    <i class="fa fa-barcode fa-4x text-muted" />
+                    <p class="text-muted">No products found</p>
+                </div>
+
+                <div t-else="" class="move_lines_container">
+                    <t t-foreach="state.moveLines" t-as="line" t-key="line.id">
+                        <div class="move_line_card">
+                            <!-- GRID 2x2 -->
+                            <div class="card_grid">
+                                <!-- TOP LEFT: Product info -->
+                                <div class="grid_top_left">
+                                    <span
+                                        t-if="line.product_code"
+                                        class="product_code"
+                                        t-esc="line.product_code"
+                                    />
+                                    <span
+                                        class="product_name"
+                                        t-esc="line.product_name"
+                                    />
+                                </div>
+
+                                <!-- TOP RIGHT: Reserved (futuro) -->
+                                <div class="grid_top_right">
+                                    <!-- Reservado para futuro -->
+                                </div>
+
+                                <!-- BOTTOM LEFT: Qty picked/demand + UoM -->
+                                <div class="grid_bottom_left">
+                                    <span class="qty_display">
+                                        <span
+                                            class="qty_picked"
+                                            t-esc="line.qty_picked"
+                                        />
+                                        <span>/</span>
+                                        <span
+                                            class="qty_demand"
+                                            t-esc="line.quantity_demand"
+                                        />
+                                        <span class="uom" t-esc="line.product_uom" />
+                                    </span>
+                                </div>
+
+                                <!-- BOTTOM RIGHT: Botones +1, -1, +X -->
+                                <div class="grid_bottom_right">
+                                    <div class="qty_buttons">
+                                        <button
+                                            t-if="this.showMinusOne(line)"
+                                            class="btn btn-sm btn-secondary qty_btn"
+                                            t-on-click="() => this.onIncrementQty(line.id, -1)"
+                                        >
+                                            -1
+                                        </button>
+                                        <button
+                                            t-if="this.showPlusOne(line)"
+                                            class="btn btn-sm btn-primary qty_btn"
+                                            t-on-click="() => this.onIncrementQty(line.id, 1)"
+                                        >
+                                            +1
+                                        </button>
+                                        <button
+                                            t-if="this.showPlusRemainder(line)"
+                                            class="btn btn-sm btn-success qty_btn"
+                                            t-on-click="() => this.onIncrementQty(line.id, this.getRemainder(line))"
+                                        >
+                                            +<t t-esc="this.getRemainder(line)" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </t>
+                </div>
+            </div>
+
+            <div class="barcode_footer">
+                <!-- Progress bar en footer -->
+                <div class="footer_progress_container" t-if="state.inCyclicFlow">
+                    <div class="progress_bar">
+                        <div
+                            class="progress_fill"
+                            t-attf-style="width: {{(state.pickedQty / state.totalQty * 100)}}%"
+                        />
+                        <span class="progress_label">
+                            <t t-esc="Math.round(state.pickedQty)" /> / <t
+                                t-esc="Math.round(state.totalQty)"
+                            /> units
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="footer_actions">
+                    <button
+                        class="btn footer_btn footer_btn_validate"
+                        t-on-click="onValidate"
+                        title="Validate Picking"
+                    >
+                        <i class="fa fa-check" />
+                    </button>
+                    <button
+                        class="btn footer_btn footer_btn_chatter"
+                        t-on-click="onToggleChatter"
+                        title="Notes"
+                    >
+                        <i class="fa fa-sticky-note-o" />
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mini Chatter Fullscreen -->
+            <div class="mini_chatter" t-if="state.showChatter">
+                <div class="chatter_header">
+                    <button
+                        class="btn btn-secondary chatter_btn"
+                        t-on-click="onCloseChatter"
+                        title="Close"
+                    >
+                        <i class="fa fa-times" />
+                    </button>
+                    <div class="chatter_header_actions">
+                        <button
+                            class="btn btn-secondary chatter_btn"
+                            t-on-click="onAttachFile"
+                            title="Attach file"
+                        >
+                            <i class="fa fa-paperclip" />
+                        </button>
+                        <button
+                            class="btn btn-secondary chatter_btn"
+                            t-on-click="onOpenMentionList"
+                            title="Mention user"
+                        >
+                            <i class="fa fa-at" />
+                        </button>
+                        <button
+                            class="btn btn-primary chatter_btn chatter_btn_post"
+                            t-on-click="onPostMessage"
+                            title="Post message"
+                        >
+                            <i class="fa fa-paper-plane" />
+                        </button>
+                    </div>
+                </div>
+
+                <div class="chatter_body">
+                    <textarea
+                        class="form-control chatter_textarea"
+                        placeholder="Write a note..."
+                        t-model="state.chatterMessage"
+                        rows="6"
+                    />
+
+                    <!-- Lista de archivos adjuntos -->
+                    <div
+                        class="chatter_attachments"
+                        t-if="state.chatterAttachments.length > 0"
+                    >
+                        <t
+                            t-foreach="state.chatterAttachments"
+                            t-as="attachment"
+                            t-key="attachment_index"
+                        >
+                            <div class="attachment_chip">
+                                <i class="fa fa-file-o" />
+                                <span t-esc="attachment.name" />
+                                <button
+                                    class="btn btn-sm btn-link"
+                                    t-on-click="() => this.removeAttachment(attachment_index)"
+                                    style="padding: 0; margin-left: 4px;"
+                                >
+                                    <i class="fa fa-times" />
+                                </button>
+                            </div>
+                        </t>
+                    </div>
+
+                    <!-- Lista de menciones -->
+                    <div class="mention_list" t-if="state.showMentionList">
+                        <div class="mention_search">
+                            <i class="fa fa-search" />
+                            <input
+                                type="text"
+                                class="form-control mention_search_input"
+                                placeholder="Search users..."
+                                t-model="state.mentionSearchText"
+                                t-ref="mentionSearchInput"
+                            />
+                        </div>
+                        <div class="mention_list_items">
+                            <t t-if="this.getFilteredMentionableUsers().length === 0">
+                                <div class="mention_item mention_item_empty">
+                                    <t
+                                        t-if="state.mentionableUsers.length === 0"
+                                    >No users available</t>
+                                    <t t-else="">No users found</t>
+                                </div>
+                            </t>
+                            <t t-else="">
+                                <t
+                                    t-foreach="this.getFilteredMentionableUsers()"
+                                    t-as="user"
+                                    t-key="user.id"
+                                >
+                                    <div
+                                        class="mention_item"
+                                        t-on-click="() => this.onSelectMention(user.id, user.name)"
+                                    >
+                                        <i
+                                            class="fa fa-user"
+                                            style="margin-right: 8px;"
+                                        />
+                                        <span t-esc="user.name" />
+                                    </div>
+                                </t>
+                            </t>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

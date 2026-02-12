@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+
+    <!-- ========================================== -->
+    <!-- INCOMING / RECEPTION PROFILE -->
+    <!-- ========================================== -->
+    <record id="profile_reception_basic" model="stock.barcode.app.profile">
+        <field name="name">Basic Reception Profile</field>
+        <field name="profile_type">picking</field>
+        <field
+            name="barcode_nomenclature_id"
+            ref="barcodes.default_barcode_nomenclature"
+        />
+        <field name="allow_lot_sn_creation" eval="True" />
+    </record>
+
+    <!-- Step 1: Scan Product (cyclic) -->
+    <record
+        id="profile_reception_step_product"
+        model="stock.barcode.app.profile.target.line"
+    >
+        <field name="profile_id" ref="profile_reception_basic" />
+        <field name="name">Scan Product</field>
+        <field name="sequence">10</field>
+        <field name="step_type">cyclic</field>
+        <field name="required" eval="False" />
+        <field name="target_ids" eval="[(6, 0, [ref('target_product')])]" />
+    </record>
+
+    <!-- Step 2: Scan Lot/Serial (cyclic, product and lot allowed) -->
+    <record
+        id="profile_reception_step_lot"
+        model="stock.barcode.app.profile.target.line"
+    >
+        <field name="profile_id" ref="profile_reception_basic" />
+        <field name="name">Scan Lot or Serial Number</field>
+        <field name="sequence">20</field>
+        <field name="step_type">cyclic</field>
+        <field name="required" eval="False" />
+        <field
+            name="target_ids"
+            eval="[(6, 0, [ref('target_product'), ref('target_lot')])]"
+        />
+    </record>
+
+    <!-- Step 3: Scan Destination Location (final) -->
+    <record
+        id="profile_reception_step_destination"
+        model="stock.barcode.app.profile.target.line"
+    >
+        <field name="profile_id" ref="profile_reception_basic" />
+        <field name="name">Scan Destination Location</field>
+        <field name="sequence">30</field>
+        <field name="step_type">final</field>
+        <field name="required" eval="True" />
+        <field
+            name="target_ids"
+            eval="[(6, 0, [ref('target_destination_location')])]"
+        />
+    </record>
+
+
+    <!-- ========================================== -->
+    <!-- INTERNAL TRANSFER PROFILE -->
+    <!-- ========================================== -->
+    <record id="profile_internal_transfer_basic" model="stock.barcode.app.profile">
+        <field name="name">Basic Internal Transfer Profile</field>
+        <field name="profile_type">picking</field>
+        <field
+            name="barcode_nomenclature_id"
+            ref="barcodes.default_barcode_nomenclature"
+        />
+        <field name="allow_lot_sn_creation" eval="False" />
+    </record>
+
+    <!-- Step 1: Scan Source Location (initial) -->
+    <record
+        id="profile_internal_step_source"
+        model="stock.barcode.app.profile.target.line"
+    >
+        <field name="profile_id" ref="profile_internal_transfer_basic" />
+        <field name="name">Scan Source Location</field>
+        <field name="sequence">10</field>
+        <field name="step_type">initial</field>
+        <field name="required" eval="False" />
+        <field name="target_ids" eval="[(6, 0, [ref('target_source_location')])]" />
+    </record>
+
+    <!-- Step 2: Scan Product (cyclic) -->
+    <record
+        id="profile_internal_step_product"
+        model="stock.barcode.app.profile.target.line"
+    >
+        <field name="profile_id" ref="profile_internal_transfer_basic" />
+        <field name="name">Scan Product</field>
+        <field name="sequence">20</field>
+        <field name="step_type">cyclic</field>
+        <field name="required" eval="False" />
+        <field name="target_ids" eval="[(6, 0, [ref('target_product')])]" />
+    </record>
+
+    <!-- Step 3: Scan Lot/Serial (cyclic) -->
+    <record
+        id="profile_internal_step_lot"
+        model="stock.barcode.app.profile.target.line"
+    >
+        <field name="profile_id" ref="profile_internal_transfer_basic" />
+        <field name="name">Scan Lot or Serial Number</field>
+        <field name="sequence">30</field>
+        <field name="step_type">cyclic</field>
+        <field name="required" eval="False" />
+        <field
+            name="target_ids"
+            eval="[(6, 0, [ref('target_product'), ref('target_lot')])]"
+        />
+    </record>
+
+    <!-- Step 4: Scan Destination Location (final) -->
+    <record
+        id="profile_internal_step_destination"
+        model="stock.barcode.app.profile.target.line"
+    >
+        <field name="profile_id" ref="profile_internal_transfer_basic" />
+        <field name="name">Scan Destination Location</field>
+        <field name="sequence">40</field>
+        <field name="step_type">final</field>
+        <field name="required" eval="True" />
+        <field
+            name="target_ids"
+            eval="[(6, 0, [ref('target_destination_location')])]"
+        />
+    </record>
+
+
+    <!-- ========================================== -->
+    <!-- DELIVERY / OUTGOING PROFILE -->
+    <!-- ========================================== -->
+    <record id="profile_delivery_basic" model="stock.barcode.app.profile">
+        <field name="name">Basic Delivery Profile</field>
+        <field name="profile_type">picking</field>
+        <field
+            name="barcode_nomenclature_id"
+            ref="barcodes.default_barcode_nomenclature"
+        />
+        <field name="allow_lot_sn_creation" eval="False" />
+    </record>
+
+    <!-- Step 1: Scan Product (cyclic) -->
+    <record
+        id="profile_delivery_step_product"
+        model="stock.barcode.app.profile.target.line"
+    >
+        <field name="profile_id" ref="profile_delivery_basic" />
+        <field name="name">Scan Product</field>
+        <field name="sequence">10</field>
+        <field name="step_type">cyclic</field>
+        <field name="required" eval="False" />
+        <field name="target_ids" eval="[(6, 0, [ref('target_product')])]" />
+    </record>
+
+    <!-- Step 2: Scan Lot/Serial (cyclic) -->
+    <record
+        id="profile_delivery_step_lot"
+        model="stock.barcode.app.profile.target.line"
+    >
+        <field name="profile_id" ref="profile_delivery_basic" />
+        <field name="name">Scan Lot or Serial Number</field>
+        <field name="sequence">20</field>
+        <field name="step_type">cyclic</field>
+        <field name="required" eval="False" />
+        <field
+            name="target_ids"
+            eval="[(6, 0, [ref('target_product'), ref('target_lot')])]"
+        />
+    </record>
+
+    <!-- Step 3: Confirm Completion (final, optional destination) -->
+    <record
+        id="profile_delivery_step_destination"
+        model="stock.barcode.app.profile.target.line"
+    >
+        <field name="profile_id" ref="profile_delivery_basic" />
+        <field name="name">Scan Destination (Optional)</field>
+        <field name="sequence">30</field>
+        <field name="step_type">final</field>
+        <field name="required" eval="False" />
+        <field
+            name="target_ids"
+            eval="[(6, 0, [ref('target_destination_location')])]"
+        />
+    </record>
+
+</odoo>

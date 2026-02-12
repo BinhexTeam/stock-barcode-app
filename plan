@@ -1,0 +1,398 @@
+# Plan FINAL: Integración de `qty_picked` en stock.move.line
+
+## 1. Aclaración Crítica del Módulo
+
+### ✅ Lo que el módulo SÍ hace:
+```python
+# En stock.move.line:
+qty_picked = fields.Float()  # ← Campo REAL agregado
+```
+
+### ❌ Lo que el módulo NO hace:
+```python
+# En stock.move:
+qty_picked = fields.Float()  # ← NO EXISTE como campo
+```
+
+### ✅ Cómo obtener qty_picked desde stock.move:
+```python
+# Usar el método proporcionado por el módulo:
+picked_qty = move._get_picked_quantity()  # ← Método agregado por el módulo
+# Este método suma qty_picked de todos los move_line_ids
+```
+
+## 2. Impacto en la Lógica - Ajustes al Plan
+
+### 2.1 En `_create_or_update_move_line_for_serial()` - SIN CAMBIOS
+
+```python
+# ✅ CORRECTO - qty_picked existe en move_line:
+available_lines = move.move_line_ids.filtered(lambda ml: ml.qty_picked == 0)
+
+line_with_serial[0].write({'qty_picked': 1.0})
+
+line_without_serial[0].write({
+    'lot_id': lot_id,
+    'qty_picked': 1.0,
+})
+
+# Crear move_line:
+move_line_vals = {
+    'qty_picked': 1.0,  # ✅ OK - campo existe en move_line
+    'quantity': 1.0,
+}
+```
+
+**Conclusión**: Esta parte del plan está CORRECTA, no necesita ajustes.
+
+### 2.2 En `_determine_next_step()` - AJUSTE MENOR
+
+```python
+# ❌ INCORRECTO (si se usara):
+def _get_picked_qty_for_move(move):
+    return move.qty_picked  # ← Campo NO existe en move
+
+# ✅ CORRECTO (si fuera necesario contar desde DB):
+def _get_picked_qty_for_move(move):
+    if move.product_id.tracking == "serial":
+        # Contar move_lines escaneados
+        return len(move.move_line_ids.filtered(lambda ml: ml.qty_picked > 0))
+    else:
+        # Para lot/none: usar método del módulo
+        return move._get_picked_quantity()  # ← Usar método
+```
+
+**Nota**: En la implementación actual usamos `picked_quantities` del contexto, que ya es correcto. Este código es solo si en el futuro queremos calcular desde la base de datos.
+
+### 2.3 En JavaScript - CORRECCIÓN IMPORTANTE
+
+```javascript
+// ❌ INCORRECTO en el plan anterior:
+// "El módulo agrega computed field qty_picked en stock.move"
+
+// ✅ CORRECTO:
+// El módulo agrega el MÉTODO _get_picked_quantity() en stock.move
+// Para leerlo desde JS, necesitaríamos agregarlo a los campos leídos
+
+// En _loadPickingData():
+const moves = await this.orm.read("stock.move", picking[0].move_ids, [
+    "product_id",
+    "product_uom_qty",
+    "quantity",           // Cantidad reservada
+    "product_uom",
+    // NO existe qty_picked como campo directo
+]);
+
+// Opción 1: Seguir usando picked_quantities del contexto (actual - OK)
+qty_picked: pickedQuantities[move.id] || 0
+
+// Opción 2: Llamar al método desde JS (mejora futura):
+// Necesitaría endpoint RPC para obtener move._get_picked_quantity()
+```
+
+**Conclusión**: Mantener implementación actual de JS, no necesita cambios inmediatos.
+
+## 3. Plan de Implementación Ajustado
+
+### ✅ FASE 1: Preparación (10 min)
+
+```bash
+# 1.1 Verificar que stock_move_line_qty_picked está disponible
+cd /home/ariel/Odoo/17generic/odoo/custom/src/stock-logistics-workflow
+ls -la | grep stock_move_line_qty_picked
+
+# 1.2 Agregar dependencia en __manifest__.py
+# (sin cambios respecto al plan anterior)
+```
+
+**En `__manifest__.py`:**
+```python
+{
+    "name": "Stock Barcode OCA",
+    "depends": [
+        "stock",
+        "barcodes",
+        "stock_move_line_qty_picked",  # ← AGREGAR
+    ],
+}
+```
+
+```bash
+# 1.3 Reinstalar módulo
+inv restart
+inv test -m stock_barcode_oca --stop  # Para verificar carga correcta
+```
+
+### ✅ FASE 2: Refactorización Backend (45 min)
+
+**Archivo: `models/barcode_profile.py`**
+
+#### Cambio 1: `_create_or_update_move_line_for_serial()` (línea ~620)
+
+```python
+def _create_or_update_move_line_for_serial(self, move, lot_id, picking, context):
+    """
+    Lógica GENÉRICA usando qty_picked (campo de stock.move.line).
+
+    IMPORTANTE: qty_picked existe en move.move_line_ids, NO en move directamente.
+    Para obtener total del move, usar: move._get_picked_quantity()
+    """
+
+    # Buscar move_lines NO escaneados (qty_picked == 0)
+    available_lines = move.move_line_ids.filtered(
+        lambda ml: ml.qty_picked == 0  # ✅ Campo existe en move_line
+    )
+
+    # ESCENARIO 1: VERIFICACIÓN
+    line_with_this_serial = available_lines.filtered(
+        lambda ml: ml.lot_id and ml.lot_id.id == lot_id
+    )
+
+    if line_with_this_serial:
+        line_with_this_serial[0].write({'qty_picked': 1.0})  # ✅ OK
+        return {
+            "success": True,
+            "message": _("Serial %(serial)s verified") % {
+                "serial": line_with_this_serial[0].lot_id.name
+            },
+            "move_line_id": line_with_this_serial[0].id,
+        }
+
+    # ESCENARIO 2: ASIGNACIÓN
+    line_without_serial = available_lines.filtered(lambda ml: not ml.lot_id)
+
+    if line_without_serial:
+        line_without_serial[0].write({
+            'lot_id': lot_id,
+            'qty_picked': 1.0,  # ✅ OK
+        })
+        lot = self.env['stock.lot'].browse(lot_id)
+        return {
+            "success": True,
+            "message": _("Serial %(serial)s assigned") % {"serial": lot.name},
+            "move_line_id": line_without_serial[0].id,
+        }
+
+    # VALIDACIÓN: SERIAL INCORRECTO
+    if available_lines:
+        expected_serials = available_lines.mapped('lot_id.name')
+        scanned_lot = self.env['stock.lot'].browse(lot_id)
+        return {
+            "success": False,
+            "message": _("Expected serial %(expected)s, but got %(actual)s") % {
+                "expected": " or ".join(expected_serials) if expected_serials else "any available",
+                "actual": scanned_lot.name,
+            },
+        }
+
+    # ESCENARIO 3: CREACIÓN
+    picked_quantities = context.get("picked_quantities", {})
+    current_picked = picked_quantities.get(str(move.id), 0)
+
+    if current_picked >= move.product_uom_qty:
+        return {
+            "success": False,
+            "message": _("Cannot add more: demand already met (%(qty)s/%(demand)s)") % {
+                "qty": current_picked,
+                "demand": move.product_uom_qty,
+            },
+        }
+
+    move_line_vals = {
+        'move_id': move.id,
+        'product_id': move.product_id.id,
+        'lot_id': lot_id,
+        'qty_picked': 1.0,    # ✅ OK - campo existe
+        'quantity': 1.0,      # También quantity
+        'product_uom_id': move.product_uom.id,
+        'location_id': move.location_id.id,
+        'location_dest_id': move.location_dest_id.id,
+        'picking_id': picking.id,
+    }
+
+    move_line = self.env['stock.move.line'].create(move_line_vals)
+
+    return {
+        "success": True,
+        "message": _("Serial %(serial)s added") % {"serial": move_line.lot_id.name},
+        "move_line_id": move_line.id,
+    }
+```
+
+#### Cambio 2: Validaciones en `_apply_barcode_to_picking()` (línea ~760)
+
+```python
+# En barcode_type == "lot":
+
+# ✅ MANTENER validación de sesión (no cambia):
+if product.tracking == "serial" and barcode_data["id"]:
+    scanned_serials = context.get("scanned_serials", {})
+    product_serials = scanned_serials.get(str(product_id), [])
+    if barcode_data["id"] in product_serials:
+        return {
+            "success": False,
+            "message": _("Serial already scanned in this session"),
+        }
+
+# ❌ ELIMINAR validación prematura existente:
+# (la que usa ml.quantity > 0)
+# Ya no es necesaria, _create_or_update_move_line_for_serial lo maneja
+```
+
+#### Cambio 3: `_determine_next_step()` - SIN CAMBIOS NECESARIOS
+
+```python
+# La implementación actual usa picked_quantities del contexto:
+pending_moves = picking.move_ids.filtered(
+    lambda m: picked_quantities.get(str(m.id), 0) < m.product_uom_qty
+)
+
+# ✅ Esto ya es correcto y no necesita cambios
+# El contexto se actualiza correctamente con quantity_to_add
+
+# NOTA: Si en el futuro se quisiera calcular desde DB:
+# picked_qty = move._get_picked_quantity()  # ← Usar método del módulo
+```
+
+### ✅ FASE 3: Testing (30 min)
+
+```bash
+# Test completo
+cd /home/ariel/Odoo/17generic
+inv test -m stock_barcode_oca 2>&1 | tail -30
+
+# Ver resumen de failures
+inv test -m stock_barcode_oca 2>&1 | grep -E "(FAIL|ERROR):" | wc -l
+
+# Tests específicos de serials:
+inv test -m stock_barcode_oca 2>&1 | grep -E "test.*serial|test.*sss"
+```
+
+**Tests críticos a verificar:**
+1. `test_05_delivery_sss_sequential` - Delivery con reservas
+2. `test_06_reception_sss_validate_serial_uniqueness` - Reception con creación
+3. `test_05_internal_sss_sequential` - Internal con asignación
+4. `test_15_delivery_serial_cannot_repeat` - Validación de duplicados
+
+### ✅ FASE 4: Validación (15 min)
+
+**Checklist:**
+- [ ] 54/54 tests pasando
+- [ ] Campo `quantity` no se sobrescribe (mantiene reserva)
+- [ ] Campo `qty_picked` se actualiza correctamente en move_lines
+- [ ] Validación de duplicados funciona (usa qty_picked > 0)
+- [ ] Creación de move_lines nuevos incluye qty_picked=1
+- [ ] Verificación de serials reservados funciona
+- [ ] Asignación a reservas genéricas funciona
+
+## 4. Diferencias Clave con Plan Anterior
+
+| Aspecto | Plan Anterior (Incorrecto) | Plan Corregido (Final) |
+|---------|---------------------------|------------------------|
+| Campo en stock.move | ❌ Asumía qty_picked como campo | ✅ Solo método _get_picked_quantity() |
+| Acceso desde move | `move.qty_picked` | `move._get_picked_quantity()` |
+| Campo en move_line | ✅ qty_picked existe | ✅ qty_picked existe (correcto) |
+| JavaScript | ❌ Mencionaba computed field | ✅ Mantener contexto actual |
+| Implementación | ✅ Correcta en move_line | ✅ Sin cambios necesarios |
+
+## 5. Resumen de Archivos a Modificar
+
+### 📝 Archivo 1: `__manifest__.py`
+```python
+# AGREGAR dependencia:
+"depends": [
+    "stock",
+    "barcodes",
+    "stock_move_line_qty_picked",  # ← NUEVA LÍNEA
+],
+```
+
+### 📝 Archivo 2: `models/barcode_profile.py`
+
+**3 ubicaciones a cambiar:**
+
+1. **Línea ~638** - `_create_or_update_move_line_for_serial()`:
+   ```python
+   - available_lines = move.move_line_ids.filtered(lambda ml: ml.quantity == 0)
+   + available_lines = move.move_line_ids.filtered(lambda ml: ml.qty_picked == 0)
+   ```
+
+2. **Línea ~650** - Actualizar verificado:
+   ```python
+   - line_with_serial[0].write({'quantity': 1.0})
+   + line_with_serial[0].write({'qty_picked': 1.0})
+   ```
+
+3. **Línea ~660** - Actualizar asignación:
+   ```python
+   - line_without_serial[0].write({'lot_id': lot_id, 'quantity': 1.0})
+   + line_without_serial[0].write({'lot_id': lot_id, 'qty_picked': 1.0})
+   ```
+
+4. **Línea ~675** - Move_line vals en creación:
+   ```python
+   move_line_vals = {
+       'lot_id': lot_id,
+   +   'qty_picked': 1.0,
+       'quantity': 1.0,
+       ...
+   }
+   ```
+
+5. **Línea ~765** - ELIMINAR validación prematura:
+   ```python
+   - # Check if serial already used with quantity > 0
+   - existing_serial = picking.move_line_ids.filtered(...)
+   - if existing_serial:
+   -     return error(...)
+   ```
+
+### 📝 Archivo 3: `static/src/js/barcode_interface.esm.js` - SIN CAMBIOS
+
+Mantener implementación actual, funciona correctamente.
+
+## 6. Comandos de Implementación
+
+```bash
+# 1. Verificar módulo disponible
+ls /home/ariel/Odoo/17generic/odoo/custom/src/stock-logistics-workflow/stock_move_line_qty_picked
+
+# 2. Editar __manifest__.py
+# (agregar dependencia)
+
+# 3. Editar models/barcode_profile.py
+# (4-5 cambios mencionados arriba)
+
+# 4. Reinstalar
+cd /home/ariel/Odoo/17generic
+inv restart
+
+# 5. Ejecutar tests
+inv test -m stock_barcode_oca 2>&1 | tail -50
+
+# 6. Validar resultado
+# Objetivo: 54/54 tests pasando ✅
+```
+
+## 7. Criterios de Éxito FINAL
+
+✅ **54/54 tests pasando (100%)**
+
+✅ **Campos correctamente usados:**
+- `stock.move.line.qty_picked` = cantidad escaneada (modificamos al escanear)
+- `stock.move.line.quantity` = cantidad reservada (no tocamos)
+- `stock.move._get_picked_quantity()` = método para obtener suma (si fuera necesario)
+
+✅ **Lógica genérica funcionando:**
+- Verificación: move_line con serial + qty_picked=0 → write qty_picked=1
+- Asignación: move_line sin serial + qty_picked=0 → write lot_id + qty_picked=1
+- Creación: no hay move_lines disponibles → create con qty_picked=1
+
+✅ **Validaciones correctas:**
+- Duplicados basados en qty_picked > 0
+- Disponibilidad basada en quantity/quants
+- Sesión basada en scanned_serials en contexto
+
+---
+
+**Plan APROBADO FINAL - ¿Comenzar implementación?** 🚀

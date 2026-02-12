@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_stock_barcode_app_profile_user,stock.barcode.app.profile.user,model_stock_barcode_app_profile,stock.group_stock_user,1,0,0,0
+access_stock_barcode_app_profile_manager,stock.barcode.app.profile.manager,model_stock_barcode_app_profile,stock.group_stock_manager,1,1,1,1
+access_stock_barcode_app_target_user,stock.barcode.app.target.user,model_stock_barcode_app_target,stock.group_stock_user,1,0,0,0
+access_stock_barcode_app_target_manager,stock.barcode.app.target.manager,model_stock_barcode_app_target,stock.group_stock_manager,1,0,0,0
+access_stock_barcode_app_profile_target_line_user,stock.barcode.app.profile.target.line.user,model_stock_barcode_app_profile_target_line,stock.group_stock_user,1,0,0,0
+access_stock_barcode_app_profile_target_line_manager,stock.barcode.app.profile.target.line.manager,model_stock_barcode_app_profile_target_line,stock.group_stock_manager,1,1,1,1

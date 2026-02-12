@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="target_destination_location" model="stock.barcode.app.target">
+        <field name="name">Destination Location</field>
+        <field name="technical_name">destination_location</field>
+        <field
+            name="description"
+        >Scan the destination location where items will be placed</field>
+    </record>
+
+    <record id="target_source_location" model="stock.barcode.app.target">
+        <field name="name">Source Location</field>
+        <field name="technical_name">source_location</field>
+        <field
+            name="description"
+        >Scan the source location where items will be picked from</field>
+    </record>
+
+    <record id="target_product" model="stock.barcode.app.target">
+        <field name="name">Product</field>
+        <field name="technical_name">product</field>
+        <field name="description">Scan the product barcode</field>
+    </record>
+
+    <record id="target_lot" model="stock.barcode.app.target">
+        <field name="name">Lot</field>
+        <field name="technical_name">lot</field>
+        <field name="description">Scan the lot number for tracking</field>
+    </record>
+
+    <record id="target_serial" model="stock.barcode.app.target">
+        <field name="name">Serial Number</field>
+        <field name="technical_name">serial</field>
+        <field
+            name="description"
+        >Scan the serial number for unique identification</field>
+    </record>
+
+    <record id="target_package" model="stock.barcode.app.target">
+        <field name="name">Package</field>
+        <field name="technical_name">package</field>
+        <field name="description">Scan the package barcode</field>
+    </record>
+</odoo>

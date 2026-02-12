@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<odoo>
+    <record id="view_barcode_profile_form" model="ir.ui.view">
+        <field name="name">stock.barcode.app.profile.form</field>
+        <field name="model">stock.barcode.app.profile</field>
+        <field name="arch" type="xml">
+            <form string="Barcode App Profile">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name" />
+                            <field name="profile_type" />
+                            <field name="barcode_nomenclature_id" />
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page
+                            string="Picking Configuration"
+                            invisible="profile_type != 'picking'"
+                        >
+                            <group>
+                                <field name="allow_lot_sn_creation" />
+                                <field name="strict_mode" />
+                                <field name="allow_exceed_demand" />
+                            </group>
+                        </page>
+                        <page
+                            string="Scanning Sequence"
+                            invisible="profile_type != 'picking'"
+                        >
+                            <field name="target_scanning_sequence_ids" nolabel="1">
+                                <tree editable="bottom">
+                                    <field name="sequence" widget="handle" />
+                                    <field name="name" required="1" />
+                                    <field
+                                        name="target_ids"
+                                        widget="many2many_tags"
+                                        required="1"
+                                    />
+                                    <field name="step_type" required="1" />
+                                    <field name="required" />
+                                </tree>
+                            </field>
+                        </page>
+                        <page>
+                            <group string="Other Settings">
+                                <field
+                                    name="company_id"
+                                    groups="base.group_multi_company"
+                                />
+                            </group>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_barcode_profile_tree" model="ir.ui.view">
+        <field name="name">stock.barcode.app.profile.tree</field>
+        <field name="model">stock.barcode.app.profile</field>
+        <field name="arch" type="xml">
+            <tree string="Barcode Profiles">
+                <field name="name" />
+                <field name="profile_type" />
+                <field
+                    name="company_id"
+                    groups="base.group_multi_company"
+                    optional="hide"
+                />
+            </tree>
+        </field>
+    </record>
+
+    <record id="view_barcode_profile_search" model="ir.ui.view">
+        <field name="name">stock.barcode.app.profile.search</field>
+        <field name="model">stock.barcode.app.profile</field>
+        <field name="arch" type="xml">
+            <search string="Barcode Profiles">
+                <field name="name" />
+                <field name="profile_type" />
+                <field name="company_id" groups="base.group_multi_company" />
+                <filter
+                    string="Archived"
+                    name="inactive"
+                    domain="[('active', '=', False)]"
+                />
+                <group expand="0" string="Group By">
+                    <filter
+                        string="Profile Type"
+                        name="group_profile_type"
+                        context="{'group_by': 'profile_type'}"
+                    />
+                    <filter
+                        string="Company"
+                        name="group_company"
+                        context="{'group_by': 'company_id'}"
+                        groups="base.group_multi_company"
+                    />
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_barcode_profile" model="ir.actions.act_window">
+        <field name="name">Barcode Profiles</field>
+        <field name="res_model">stock.barcode.app.profile</field>
+        <field name="view_mode">tree,form</field>
+    </record>
+
+    <menuitem
+        id="menu_barcode_profile"
+        name="Barcode Profiles"
+        parent="stock.menu_stock_config_settings"
+        action="action_barcode_profile"
+        sequence="99"
+    />
+</odoo>
