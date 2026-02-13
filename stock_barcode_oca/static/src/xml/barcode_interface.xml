@@ -88,18 +88,16 @@
                                         class="product_name"
                                         t-esc="line.product_name"
                                     />
-                                    <button
-                                        class="btn btn-link p-0 ms-2 edit_line_icon"
-                                        t-on-click="() => this.onOpenLineEditor(line.id)"
-                                        title="Edit Line Details"
-                                    >
-                                        <i class="fa fa-pencil-alt" />
-                                    </button>
                                 </div>
 
-                                <!-- TOP RIGHT: Reserved (futuro) -->
+                                <!-- TOP RIGHT: Edit button -->
                                 <div class="grid_top_right">
-                                    <!-- Reservado para futuro -->
+                                    <button
+                                        class="btn btn-sm btn-primary"
+                                        t-on-click="() => this.onOpenLineEditor(line.id)"
+                                    >
+                                        <i class="fa fa-pencil" />
+                                    </button>
                                 </div>
 
                                 <!-- BOTTOM LEFT: Qty picked/demand + UoM -->

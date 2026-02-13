@@ -228,7 +228,7 @@
 }
 
 .footer_btn:hover {
-    filter: brightness(1.1);
+    filter: brightness(0.8);
 }
 
 .footer_btn_validate {
@@ -282,8 +282,7 @@
 }
 
 .chatter_btn_post:hover {
-    background: var(--brand-primary-dark);
-    border-color: var(--brand-primary-dark);
+    filter: brightness(0.8);
 }
 
 .chatter_body {
@@ -384,7 +383,7 @@
 }
 
 .mention_item:hover:not(.mention_item_empty) {
-    background: var(--bg-light);
+    filter: brightness(0.8);
 }
 
 .mention_item_empty {
@@ -493,7 +492,7 @@
 }
 
 .step_block:hover {
-    background: #d3d3d3;
+    filter: brightness(0.8);
 }
 
 .backorder_dialog_overlay {
@@ -540,11 +539,10 @@
     font-size: 24px;
     line-height: 1;
     opacity: 0.6;
-    transition: opacity 0.2s;
 }
 
 .backorder_close_btn:hover {
-    opacity: 1;
+    filter: brightness(0.8);
 }
 
 .backorder_dialog_body {
@@ -637,11 +635,10 @@
     font-size: 28px;
     border: none;
     border-radius: var(--border-radius);
-    transition: filter 0.2s;
 }
 
 .backorder_btn:hover {
-    filter: brightness(1.1);
+    filter: brightness(0.8);
 }
 
 .backorder_btn_cancel {
@@ -650,7 +647,7 @@
 }
 
 .backorder_btn_cancel:hover {
-    background: var(--brand-danger-dark);
+    filter: brightness(0.8);
 }
 
 .backorder_btn_confirm {
@@ -659,19 +656,23 @@
 }
 
 .backorder_btn_confirm:hover {
-    background: var(--brand-primary-dark);
+    filter: brightness(0.8);
 }
 
-.edit_line_icon {
-    color: var(--text-secondary);
-    font-size: 14px;
-    opacity: 0.7;
-    transition: opacity 0.2s, color 0.2s;
+.grid_top_right {
+    gap: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
 }
 
-.edit_line_icon:hover {
-    opacity: 1;
-    color: var(--brand-primary);
+.grid_top_right .btn {
+    min-width: 50px;
+    height: 32px;
+}
+
+.grid_top_right .btn:hover {
+    filter: brightness(0.8);
 }
 
 .line_editor_screen {
@@ -770,8 +771,7 @@
 }
 
 .scan_btn.btn-warning:hover {
-    background: #e0a800;
-    border-color: #e0a800;
+    filter: brightness(0.8);
 }
 
 .qty_input_group {
