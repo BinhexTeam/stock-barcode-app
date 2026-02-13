@@ -35,6 +35,14 @@
     color: #212529;
 }
 
+.barcode_partner {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: #6c757d;
+    margin-top: 2px;
+}
+
 .barcode_scan_btn {
     width: 50px;
     height: 50px;
@@ -599,4 +607,183 @@
 
 .step_block:hover {
     background: #d3d3d3;
+}
+
+/* Backorder Dialog */
+.backorder_dialog_overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 16px;
+}
+
+.backorder_dialog {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    max-width: 700px;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.backorder_dialog_header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.backorder_dialog_header h4 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.backorder_close_btn {
+    padding: 0;
+    border: none;
+    background: none;
+    color: #6c757d;
+    font-size: 24px;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.backorder_close_btn:hover {
+    opacity: 1;
+    background: none;
+    color: #6c757d;
+}
+
+.backorder_dialog_body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.backorder_message {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 4px;
+    margin-bottom: 16px;
+}
+
+.backorder_question {
+    margin: 16px 0;
+    color: #6c757d;
+    line-height: 1.5;
+}
+
+.backorder_table_container {
+    margin-top: 20px;
+    overflow-x: auto;
+}
+
+.backorder_table {
+    margin-bottom: 0;
+}
+
+.backorder_table thead th {
+    background: #f8f9fa;
+    font-weight: 600;
+    border-bottom: 2px solid #dee2e6;
+    padding: 10px;
+}
+
+.backorder_table tbody td {
+    padding: 10px;
+    vertical-align: middle;
+}
+
+.backorder_product_info {
+    display: flex;
+    flex-direction: column;
+}
+
+.backorder_product_code {
+    font-size: 11px;
+    color: #6c757d;
+    margin-bottom: 2px;
+}
+
+.backorder_product_name {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.backorder_qty_highlight {
+    color: #0c5460;
+    background: #d1ecf1;
+}
+
+.backorder_dialog_footer {
+    padding: 20px;
+    border-top: 1px solid #dee2e6;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.backorder_footer_text {
+    text-align: center;
+    font-size: 16px;
+    font-weight: 600;
+    color: #495057;
+}
+
+.backorder_footer_buttons {
+    display: flex;
+    justify-content: stretch;
+    gap: 12px;
+}
+
+.backorder_btn {
+    flex: 1;
+    height: 60px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    border: none;
+    border-radius: 4px;
+    transition: filter 0.2s;
+}
+
+.backorder_btn:hover {
+    filter: brightness(1.1);
+}
+
+.backorder_btn_cancel {
+    background: #dc3545;
+    color: white;
+}
+
+.backorder_btn_cancel:hover {
+    background: #c82333;
+    color: white;
+}
+
+.backorder_btn_confirm {
+    background: #00a09d;
+    color: white;
+}
+
+.backorder_btn_confirm:hover {
+    background: #008c89;
+    color: white;
 }

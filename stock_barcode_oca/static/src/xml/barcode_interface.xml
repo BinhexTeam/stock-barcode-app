@@ -11,7 +11,16 @@
                     <i class="fa fa-times" />
                 </button>
                 <div class="barcode_header_title">
-                    <h3 class="barcode_title" t-esc="state.pickingName" />
+                    <div>
+                        <h4 class="barcode_title" t-esc="state.pickingName" />
+                        <div t-if="state.partnerName">
+                            <i
+                                class="fa fa-user"
+                                style="margin-right: 6px; margin-end: 6px;"
+                            />
+                            <span class="barcode_partner" t-esc="state.partnerName" />
+                        </div>
+                    </div>
                 </div>
                 <button
                     class="btn btn-primary barcode_scan_btn"
@@ -275,6 +284,119 @@
                                     </div>
                                 </t>
                             </t>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backorder Dialog -->
+            <div class="backorder_dialog_overlay" t-if="state.showBackorderDialog">
+                <div class="backorder_dialog">
+                    <div class="backorder_dialog_header">
+                        <h4>Incomplete Transfer</h4>
+                        <button
+                            class="btn btn-link backorder_close_btn"
+                            t-on-click="onCloseBackorderDialog"
+                            title="Close"
+                        >
+                            <i class="fa fa-times" />
+                        </button>
+                    </div>
+
+                    <div class="backorder_dialog_body">
+                        <div class="backorder_message">
+                            <i
+                                class="fa fa-exclamation-triangle"
+                                style="margin-right: 8px; color: #f0ad4e;"
+                            />
+                            <span
+                            >You have processed less products than the initial demand.</span>
+                        </div>
+
+                        <p class="backorder_question">
+                            Create a backorder if you expect to process the remaining products later.
+                            Do not create a backorder if you will not process the remaining products.
+                        </p>
+
+                        <div class="backorder_table_container">
+                            <table class="table table-sm backorder_table">
+                                <thead>
+                                    <tr>
+                                        <th>Product</th>
+                                        <th class="text-right">Picked</th>
+                                        <th class="text-right">Demand</th>
+                                        <th class="text-right">Backorder</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <t
+                                        t-foreach="state.backorderPendingLines"
+                                        t-as="line"
+                                        t-key="line_index"
+                                    >
+                                        <tr>
+                                            <td>
+                                                <div class="backorder_product_info">
+                                                    <span
+                                                        t-if="line.product_code"
+                                                        class="backorder_product_code"
+                                                        t-esc="line.product_code"
+                                                    />
+                                                    <span
+                                                        class="backorder_product_name"
+                                                        t-esc="line.product_name"
+                                                    />
+                                                </div>
+                                            </td>
+                                            <td class="text-right">
+                                                <span t-esc="line.qty_picked" />
+                                                <span
+                                                    class="text-muted"
+                                                    t-esc="' ' + line.product_uom"
+                                                />
+                                            </td>
+                                            <td class="text-right">
+                                                <span t-esc="line.qty_demand" />
+                                                <span
+                                                    class="text-muted"
+                                                    t-esc="' ' + line.product_uom"
+                                                />
+                                            </td>
+                                            <td
+                                                class="text-right backorder_qty_highlight"
+                                            >
+                                                <strong t-esc="line.qty_backorder" />
+                                                <span
+                                                    class="text-muted"
+                                                    t-esc="' ' + line.product_uom"
+                                                />
+                                            </td>
+                                        </tr>
+                                    </t>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="backorder_dialog_footer">
+                        <div class="backorder_footer_text">
+                            <span>Create Backorder?</span>
+                        </div>
+                        <div class="backorder_footer_buttons">
+                            <button
+                                class="btn backorder_btn backorder_btn_cancel"
+                                t-on-click="onCancelBackorder"
+                                title="No Backorder"
+                            >
+                                <i class="fa fa-times" />
+                            </button>
+                            <button
+                                class="btn backorder_btn backorder_btn_confirm"
+                                t-on-click="onConfirmBackorder"
+                                title="Create Backorder"
+                            >
+                                <i class="fa fa-check" />
+                            </button>
                         </div>
                     </div>
                 </div>

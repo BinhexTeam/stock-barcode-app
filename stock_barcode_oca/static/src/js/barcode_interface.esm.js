@@ -27,6 +27,7 @@ export class BarcodeInterface extends Component {
             pickingId: this.props.action.context.active_id,
             profileId: this.props.action.context.barcode_profile_id,
             pickingName: "",
+            partnerName: "",
             moveLines: [],
 
             profileConfig: {
@@ -75,6 +76,9 @@ export class BarcodeInterface extends Component {
             mentionableUsers: [],
             mentionedPartners: [],
             mentionSearchText: "",
+
+            showBackorderDialog: false,
+            backorderPendingLines: [],
         });
 
         onWillStart(async () => {
@@ -114,10 +118,13 @@ export class BarcodeInterface extends Component {
         const picking = await this.orm.read(
             "stock.picking",
             [this.state.pickingId],
-            ["name", "move_ids"]
+            ["name", "partner_id", "move_ids"]
         );
         if (picking && picking.length > 0) {
             this.state.pickingName = picking[0].name;
+            this.state.partnerName = picking[0].partner_id
+                ? picking[0].partner_id[1]
+                : "";
             if (picking[0].move_ids && picking[0].move_ids.length > 0) {
                 const moves = await this.orm.read("stock.move", picking[0].move_ids, [
                     "product_id",
@@ -574,15 +581,27 @@ export class BarcodeInterface extends Component {
                 return;
             }
 
-            // Llamar a button_validate
-            await this.orm.call("stock.picking", "button_validate", [
+            // Llamar a button_validate y capturar la respuesta
+            const result = await this.orm.call("stock.picking", "button_validate", [
                 this.state.pickingId,
             ]);
 
-            this.notification.add("Picking validated successfully", {type: "success"});
-
-            // Cerrar la interfaz
-            this.action.doAction({type: "ir.actions.act_window_close"});
+            // Si result es un objeto con res_model, es un wizard
+            if (
+                result &&
+                typeof result === "object" &&
+                result.res_model === "stock.backorder.confirmation"
+            ) {
+                // Mostrar el diálogo de backorder personalizado
+                await this._showBackorderDialog();
+            } else {
+                // Validación exitosa directa
+                this.notification.add("Picking validated successfully", {
+                    type: "success",
+                });
+                // Volver al formulario del picking
+                this.onClose();
+            }
         } catch (error) {
             console.error("Error validating picking:", error);
             this.notification.add(error.message || "Error validating picking", {
@@ -779,6 +798,107 @@ export class BarcodeInterface extends Component {
         } catch (error) {
             console.error("Error posting message:", error);
             this.notification.add(error.message || "Error posting message", {
+                type: "danger",
+            });
+        }
+    }
+
+    async _showBackorderDialog() {
+        try {
+            // Calcular las líneas con cantidades pendientes
+            const pendingLines = this.state.moveLines
+                .filter((line) => line.qty_picked < line.quantity_demand)
+                .map((line) => ({
+                    product_name: line.product_name,
+                    product_code: line.product_code,
+                    qty_picked: line.qty_picked,
+                    qty_demand: line.quantity_demand,
+                    qty_backorder: line.quantity_demand - line.qty_picked,
+                    product_uom: line.product_uom,
+                }));
+
+            if (pendingLines.length === 0) {
+                // No hay cantidades pendientes, esto no debería pasar
+                this.notification.add("Picking validated successfully", {
+                    type: "success",
+                });
+                // Volver al formulario del picking
+                this.onClose();
+                return;
+            }
+
+            // Mostrar el diálogo (no necesitamos el wizard ID)
+            this.state.backorderPendingLines = pendingLines;
+            this.state.showBackorderDialog = true;
+        } catch (error) {
+            console.error("Error showing backorder dialog:", error);
+            this.notification.add("Error showing backorder dialog", {
+                type: "danger",
+            });
+        }
+    }
+
+    onCloseBackorderDialog() {
+        this.state.showBackorderDialog = false;
+        this.state.backorderPendingLines = [];
+    }
+
+    async onConfirmBackorder() {
+        try {
+            // Llamar a button_validate con skip_backorder para crear el backorder
+            // sin mostrar el wizard nativo
+            await this.orm.call(
+                "stock.picking",
+                "button_validate",
+                [[this.state.pickingId]],
+                {
+                    context: {
+                        skip_backorder: true,
+                    },
+                }
+            );
+
+            this.notification.add("Picking validated with backorder created", {
+                type: "success",
+            });
+
+            // Cerrar el diálogo y volver al formulario del picking
+            this.onCloseBackorderDialog();
+            this.onClose();
+        } catch (error) {
+            console.error("Error confirming backorder:", error);
+            this.notification.add(error.message || "Error confirming backorder", {
+                type: "danger",
+            });
+        }
+    }
+
+    async onCancelBackorder() {
+        try {
+            // Llamar a button_validate con picking_ids_not_to_backorder
+            // para validar sin crear backorder
+            await this.orm.call(
+                "stock.picking",
+                "button_validate",
+                [[this.state.pickingId]],
+                {
+                    context: {
+                        skip_backorder: true,
+                        picking_ids_not_to_backorder: [this.state.pickingId],
+                    },
+                }
+            );
+
+            this.notification.add("Picking validated without backorder", {
+                type: "success",
+            });
+
+            // Cerrar el diálogo y volver al formulario del picking
+            this.onCloseBackorderDialog();
+            this.onClose();
+        } catch (error) {
+            console.error("Error canceling backorder:", error);
+            this.notification.add(error.message || "Error canceling backorder", {
                 type: "danger",
             });
         }
