@@ -1833,3 +1833,367 @@ class BarcodeAppProfile(models.Model):
                 sequence_lines.filtered(lambda line: line.step_type == "cyclic")
             ),
         }
+
+    def get_move_line_details(self, picking_id, move_line_id=None):
+        self.ensure_one()
+        picking = self.env["stock.picking"].browse(picking_id)
+        if not picking.exists():
+            return {"error": _("Picking not found")}
+
+        if move_line_id:
+            move_line = self.env["stock.move.line"].browse(move_line_id)
+            if not move_line.exists() or move_line.picking_id.id != picking_id:
+                return {"error": _("Move line not found or doesn't belong to this picking")}
+        else:
+            move_line = self.env["stock.move.line"]
+
+        allowed_dest_locations = self.env["stock.location"].search(
+            [
+                ("id", "child_of", picking.location_dest_id.id),
+                ("usage", "=", "internal"),
+            ]
+        )
+
+        result = {
+            "picking_id": picking.id,
+            "allow_create_move_line": True,
+            "allow_exceed_demand": self.allow_exceed_demand,
+            "allow_lot_sn_creation": self.allow_lot_sn_creation,
+            "allowed_dest_locations": [
+                {
+                    "id": loc.id,
+                    "name": loc.complete_name or loc.name,
+                    "barcode": loc.barcode,
+                }
+                for loc in allowed_dest_locations
+            ],
+        }
+
+        if move_line_id:
+            result.update(
+                {
+                    "id": move_line.id,
+                    "product_id": move_line.product_id.id,
+                    "product_name": move_line.product_id.display_name,
+                    "product_code": move_line.product_id.default_code or "",
+                    "tracking": move_line.product_id.tracking,
+                    "lot_id": move_line.lot_id.id if move_line.lot_id else None,
+                    "lot_name": move_line.lot_name or (move_line.lot_id.name if move_line.lot_id else ""),
+                    "qty_picked": move_line.qty_picked,
+                    "quantity": move_line.quantity,
+                    "product_uom_id": move_line.product_uom_id.id,
+                    "product_uom_name": move_line.product_uom_id.name,
+                    "location_id": move_line.location_id.id,
+                    "location_name": move_line.location_id.complete_name or move_line.location_id.name,
+                    "location_dest_id": move_line.location_dest_id.id,
+                    "location_dest_name": move_line.location_dest_id.complete_name or move_line.location_dest_id.name,
+                    "package_id": move_line.package_id.id if move_line.package_id else None,
+                    "package_name": move_line.package_id.name if move_line.package_id else "",
+                    "result_package_id": move_line.result_package_id.id if move_line.result_package_id else None,
+                    "result_package_name": move_line.result_package_id.name if move_line.result_package_id else "",
+                    "move_id": move_line.move_id.id,
+                    "move_demand": move_line.move_id.product_uom_qty,
+                }
+            )
+        else:
+            result.update(
+                {
+                    "id": None,
+                    "product_id": None,
+                    "product_name": "",
+                    "product_code": "",
+                    "tracking": "none",
+                    "lot_id": None,
+                    "lot_name": "",
+                    "qty_picked": 0.0,
+                    "quantity": 0.0,
+                    "product_uom_id": None,
+                    "product_uom_name": "",
+                    "location_id": picking.location_id.id,
+                    "location_name": picking.location_id.complete_name or picking.location_id.name,
+                    "location_dest_id": picking.location_dest_id.id,
+                    "location_dest_name": picking.location_dest_id.complete_name or picking.location_dest_id.name,
+                    "package_id": None,
+                    "package_name": "",
+                    "result_package_id": None,
+                    "result_package_name": "",
+                    "move_id": None,
+                    "move_demand": 0.0,
+                }
+            )
+
+        return result
+
+    def validate_and_save_move_line(self, picking_id, move_line_vals, is_new=False):
+        self.ensure_one()
+        picking = self.env["stock.picking"].browse(picking_id)
+        if not picking.exists():
+            return {"success": False, "error": _("Picking not found")}
+
+        product_id = move_line_vals.get("product_id")
+        if not product_id:
+            return {"success": False, "error": _("Product is required")}
+
+        product = self.env["product.product"].browse(product_id)
+        if not product.exists():
+            return {"success": False, "error": _("Product not found")}
+
+        tracking = product.tracking
+        qty_picked = move_line_vals.get("qty_picked", 0.0)
+        lot_id = move_line_vals.get("lot_id")
+        lot_name = move_line_vals.get("lot_name")
+
+        if tracking == "serial":
+            if qty_picked != 1.0:
+                return {
+                    "success": False,
+                    "error": _("Serial number quantity must be 1.0"),
+                }
+            if not lot_id and not lot_name:
+                return {"success": False, "error": _("Serial number is required")}
+
+            if lot_id:
+                existing_lines = picking.move_line_ids.filtered(
+                    lambda ml: ml.lot_id.id == lot_id
+                    and ml.id != move_line_vals.get("id")
+                    and ml.qty_picked >= 1.0
+                )
+                if existing_lines:
+                    return {
+                        "success": False,
+                        "error": _("Serial number already used in this picking"),
+                    }
+
+        elif tracking == "lot":
+            if not lot_id and not lot_name:
+                return {"success": False, "error": _("Lot is required")}
+            if qty_picked <= 0:
+                return {
+                    "success": False,
+                    "error": _("Quantity must be positive"),
+                }
+
+        elif tracking == "none":
+            if qty_picked <= 0:
+                return {
+                    "success": False,
+                    "error": _("Quantity must be positive"),
+                }
+
+        location_dest_id = move_line_vals.get("location_dest_id")
+        if location_dest_id:
+            location_dest = self.env["stock.location"].browse(location_dest_id)
+            if not location_dest.exists():
+                return {"success": False, "error": _("Destination location not found")}
+
+            allowed_dest_locations = self.env["stock.location"].search(
+                [("id", "child_of", picking.location_dest_id.id)]
+            )
+            if location_dest not in allowed_dest_locations:
+                return {
+                    "success": False,
+                    "error": _(
+                        "Destination location must be a child of picking's destination"
+                    ),
+                }
+
+        if not self.allow_exceed_demand and move_line_vals.get("move_id"):
+            move = self.env["stock.move"].browse(move_line_vals["move_id"])
+            if move.exists():
+                current_picked = sum(
+                    move.move_line_ids.filtered(
+                        lambda ml: ml.id != move_line_vals.get("id")
+                    ).mapped("qty_picked")
+                )
+                total_picked = current_picked + qty_picked
+                if total_picked > move.product_uom_qty:
+                    return {
+                        "success": False,
+                        "error": _("Cannot exceed demanded quantity (%.2f)")
+                        % move.product_uom_qty,
+                    }
+
+        if lot_name and not lot_id:
+            if not self.allow_lot_sn_creation:
+                lot = self.env["stock.lot"].search(
+                    [("name", "=", lot_name), ("product_id", "=", product_id)], limit=1
+                )
+                if not lot:
+                    return {
+                        "success": False,
+                        "error": _("Lot/Serial creation not allowed and lot not found"),
+                    }
+                lot_id = lot.id
+            else:
+                lot = self.env["stock.lot"].create(
+                    {"name": lot_name, "product_id": product_id, "company_id": picking.company_id.id}
+                )
+                lot_id = lot.id
+
+        try:
+            move_line_id = move_line_vals.get("id")
+            if move_line_id:
+                move_line = self.env["stock.move.line"].browse(move_line_id)
+                if not move_line.exists():
+                    return {"success": False, "error": _("Move line not found")}
+
+                update_vals = {
+                    "qty_picked": qty_picked,
+                    "quantity": qty_picked,
+                }
+                if lot_id:
+                    update_vals["lot_id"] = lot_id
+                if lot_name:
+                    update_vals["lot_name"] = lot_name
+                if location_dest_id:
+                    update_vals["location_dest_id"] = location_dest_id
+                if "package_id" in move_line_vals:
+                    update_vals["package_id"] = move_line_vals["package_id"]
+                if "result_package_id" in move_line_vals:
+                    update_vals["result_package_id"] = move_line_vals["result_package_id"]
+
+                move_line.write(update_vals)
+                return {"success": True, "move_line_id": move_line.id}
+            else:
+                return {
+                    "success": False,
+                    "error": _("Creating new move lines not yet implemented"),
+                }
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    def scan_in_line_editor(self, picking_id, barcode, scan_mode, current_values):
+        self.ensure_one()
+        picking = self.env["stock.picking"].browse(picking_id)
+        if not picking.exists():
+            return {"success": False, "error": _("Picking not found")}
+
+        if scan_mode == "lot":
+            product_id = current_values.get("product_id")
+            if not product_id:
+                return {"success": False, "error": _("Product not set")}
+
+            product = self.env["product.product"].browse(product_id)
+            tracking = product.tracking
+
+            if tracking == "none":
+                return {
+                    "success": False,
+                    "error": _("Product does not use lot/serial tracking"),
+                }
+
+            lot = self.env["stock.lot"].search(
+                [
+                    ("name", "=", barcode),
+                    ("product_id", "=", product_id),
+                ],
+                limit=1,
+            )
+
+            if not lot:
+                if self.allow_lot_sn_creation:
+                    lot = self.env["stock.lot"].create(
+                        {
+                            "name": barcode,
+                            "product_id": product_id,
+                            "company_id": picking.company_id.id,
+                        }
+                    )
+                else:
+                    return {
+                        "success": False,
+                        "error": _("Lot/Serial '%s' not found and creation not allowed")
+                        % barcode,
+                    }
+
+            if tracking == "serial":
+                current_line_id = current_values.get("id")
+                existing_lines = picking.move_line_ids.filtered(
+                    lambda ml: ml.lot_id.id == lot.id
+                    and ml.id != current_line_id
+                    and ml.qty_picked >= 1.0
+                )
+                if existing_lines:
+                    return {
+                        "success": False,
+                        "error": _("Serial number '%s' already used in this picking")
+                        % barcode,
+                    }
+
+            return {
+                "success": True,
+                "lot_id": lot.id,
+                "lot_name": lot.name,
+            }
+
+        elif scan_mode == "location_dest":
+            location = self.env["stock.location"].search(
+                [("barcode", "=", barcode)], limit=1
+            )
+
+            if not location:
+                return {
+                    "success": False,
+                    "error": _("Location with barcode '%s' not found") % barcode,
+                }
+
+            allowed_dest_locations = self.env["stock.location"].search(
+                [("id", "child_of", picking.location_dest_id.id)]
+            )
+
+            if location not in allowed_dest_locations:
+                return {
+                    "success": False,
+                    "error": _(
+                        "Location '%s' is not a valid destination (must be child of %s)"
+                    )
+                    % (location.complete_name or location.name, picking.location_dest_id.complete_name or picking.location_dest_id.name),
+                }
+
+            return {
+                "success": True,
+                "location_dest_id": location.id,
+                "location_dest_name": location.complete_name or location.name,
+            }
+
+        elif scan_mode == "package":
+            package = self.env["stock.quant.package"].search(
+                [("name", "=", barcode)], limit=1
+            )
+
+            if not package:
+                return {
+                    "success": False,
+                    "error": _("Package with name '%s' not found") % barcode,
+                }
+
+            return {
+                "success": True,
+                "package_id": package.id,
+                "package_name": package.name,
+            }
+
+        elif scan_mode == "result_package":
+            package = self.env["stock.quant.package"].search(
+                [("name", "=", barcode)], limit=1
+            )
+
+            if not package:
+                if self.env.user.has_group("stock.group_tracking_lot"):
+                    package = self.env["stock.quant.package"].create({"name": barcode})
+                else:
+                    return {
+                        "success": False,
+                        "error": _("Package with name '%s' not found and creation not allowed")
+                        % barcode,
+                    }
+
+            return {
+                "success": True,
+                "result_package_id": package.id,
+                "result_package_name": package.name,
+            }
+
+        else:
+            return {"success": False, "error": _("Invalid scan mode: %s") % scan_mode}

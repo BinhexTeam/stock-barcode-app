@@ -79,6 +79,38 @@ export class BarcodeInterface extends Component {
 
             showBackorderDialog: false,
             backorderPendingLines: [],
+
+            showLineEditor: false,
+            lineEditorMode: 'view',
+            lineEditorData: {
+                id: null,
+                product_id: null,
+                product_name: "",
+                product_code: "",
+                tracking: "none",
+                lot_id: null,
+                lot_name: "",
+                qty_picked: 0.0,
+                quantity: 0.0,
+                product_uom_id: null,
+                product_uom_name: "",
+                location_id: null,
+                location_name: "",
+                location_dest_id: null,
+                location_dest_name: "",
+                package_id: null,
+                package_name: "",
+                result_package_id: null,
+                result_package_name: "",
+                move_id: null,
+                move_demand: 0.0,
+                allowed_dest_locations: [],
+            },
+            lineEditorConfig: {
+                allow_create_move_line: false,
+                allow_exceed_demand: false,
+                allow_lot_sn_creation: false,
+            },
         });
 
         onWillStart(async () => {
@@ -345,7 +377,11 @@ export class BarcodeInterface extends Component {
     _onBarcodeScanned = (ev) => {
         const barcode = ev.detail.barcode;
         if (barcode) {
-            this._processBarcode(barcode);
+            if (this.state.showLineEditor && this.state.lineEditorMode !== 'view') {
+                this._processLineEditorScan(barcode);
+            } else {
+                this._processBarcode(barcode);
+            }
         }
     };
 
@@ -899,6 +935,185 @@ export class BarcodeInterface extends Component {
         } catch (error) {
             console.error("Error canceling backorder:", error);
             this.notification.add(error.message || "Error canceling backorder", {
+                type: "danger",
+            });
+        }
+    }
+
+    async onOpenLineEditor(moveLineId) {
+        try {
+            const result = await this.orm.call(
+                "stock.barcode.app.profile",
+                "get_move_line_details",
+                [this.state.profileId, this.state.pickingId, moveLineId]
+            );
+
+            if (result.error) {
+                this.notification.add(result.error, {type: "danger"});
+                return;
+            }
+
+            this.state.lineEditorData = {
+                id: result.id,
+                product_id: result.product_id,
+                product_name: result.product_name,
+                product_code: result.product_code,
+                tracking: result.tracking,
+                lot_id: result.lot_id,
+                lot_name: result.lot_name,
+                qty_picked: result.qty_picked,
+                quantity: result.quantity,
+                product_uom_id: result.product_uom_id,
+                product_uom_name: result.product_uom_name,
+                location_id: result.location_id,
+                location_name: result.location_name,
+                location_dest_id: result.location_dest_id,
+                location_dest_name: result.location_dest_name,
+                package_id: result.package_id,
+                package_name: result.package_name,
+                result_package_id: result.result_package_id,
+                result_package_name: result.result_package_name,
+                move_id: result.move_id,
+                move_demand: result.move_demand,
+                allowed_dest_locations: result.allowed_dest_locations || [],
+            };
+
+            this.state.lineEditorConfig = {
+                allow_create_move_line: result.allow_create_move_line,
+                allow_exceed_demand: result.allow_exceed_demand,
+                allow_lot_sn_creation: result.allow_lot_sn_creation,
+            };
+
+            this.state.lineEditorMode = "view";
+            this.state.showLineEditor = true;
+        } catch (error) {
+            console.error("Error opening line editor:", error);
+            this.notification.add(error.message || "Error opening line editor", {
+                type: "danger",
+            });
+        }
+    }
+
+    onCloseLineEditor() {
+        this.state.showLineEditor = false;
+        this.state.lineEditorMode = "view";
+    }
+
+    onStartScanMode(mode) {
+        this.state.lineEditorMode = mode;
+    }
+
+    onCancelScanMode() {
+        this.state.lineEditorMode = "view";
+    }
+
+    async _processLineEditorScan(barcode) {
+        try {
+            const result = await this.orm.call(
+                "stock.barcode.app.profile",
+                "scan_in_line_editor",
+                [
+                    this.state.profileId,
+                    this.state.pickingId,
+                    barcode,
+                    this.state.lineEditorMode,
+                    this.state.lineEditorData,
+                ]
+            );
+
+            if (result.success) {
+                if ("vibrate" in window.navigator) {
+                    window.navigator.vibrate(100);
+                }
+
+                if (result.lot_id !== undefined) {
+                    this.state.lineEditorData.lot_id = result.lot_id;
+                    this.state.lineEditorData.lot_name = result.lot_name;
+                }
+                if (result.location_dest_id !== undefined) {
+                    this.state.lineEditorData.location_dest_id = result.location_dest_id;
+                    this.state.lineEditorData.location_dest_name =
+                        result.location_dest_name;
+                }
+                if (result.package_id !== undefined) {
+                    this.state.lineEditorData.package_id = result.package_id;
+                    this.state.lineEditorData.package_name = result.package_name;
+                }
+                if (result.result_package_id !== undefined) {
+                    this.state.lineEditorData.result_package_id =
+                        result.result_package_id;
+                    this.state.lineEditorData.result_package_name =
+                        result.result_package_name;
+                }
+
+                this.state.lineEditorMode = "view";
+
+                this.notification.add("Scanned successfully", {type: "success"});
+            } else {
+                if ("vibrate" in window.navigator) {
+                    window.navigator.vibrate([100, 50, 100]);
+                }
+                this.notification.add(result.error || "Scan failed", {
+                    type: "danger",
+                });
+            }
+        } catch (error) {
+            console.error("Error processing line editor scan:", error);
+            this.notification.add(error.message || "Error processing scan", {
+                type: "danger",
+            });
+        }
+    }
+
+    onLineEditorQtyChange(ev) {
+        const newQty = parseFloat(ev.target.value) || 0;
+        this.state.lineEditorData.qty_picked = newQty;
+    }
+
+    async onSaveLineEditor() {
+        const data = this.state.lineEditorData;
+
+        if (data.tracking === "serial" && data.qty_picked !== 1.0) {
+            this.notification.add("Serial number quantity must be 1.0", {
+                type: "danger",
+            });
+            return;
+        }
+
+        if (data.tracking !== "none" && !data.lot_id && !data.lot_name) {
+            this.notification.add(
+                data.tracking === "serial"
+                    ? "Serial number is required"
+                    : "Lot is required",
+                {type: "danger"}
+            );
+            return;
+        }
+
+        if (data.qty_picked <= 0) {
+            this.notification.add("Quantity must be positive", {type: "danger"});
+            return;
+        }
+
+        try {
+            const result = await this.orm.call(
+                "stock.barcode.app.profile",
+                "validate_and_save_move_line",
+                [this.state.profileId, this.state.pickingId, data, false]
+            );
+
+            if (result.success) {
+                this.notification.add("Line saved successfully", {type: "success"});
+                this.onCloseLineEditor();
+                await this._loadPickingData();
+            } else {
+                this.notification.add(result.error || "Error saving line", {
+                    type: "danger",
+                });
+            }
+        } catch (error) {
+            console.error("Error saving line:", error);
+            this.notification.add(error.message || "Error saving line", {
                 type: "danger",
             });
         }

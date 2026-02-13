@@ -88,6 +88,13 @@
                                         class="product_name"
                                         t-esc="line.product_name"
                                     />
+                                    <button
+                                        class="btn btn-link p-0 ms-2 edit_line_icon"
+                                        t-on-click="() => this.onOpenLineEditor(line.id)"
+                                        title="Edit Line Details"
+                                    >
+                                        <i class="fa fa-pencil-alt" />
+                                    </button>
                                 </div>
 
                                 <!-- TOP RIGHT: Reserved (futuro) -->
@@ -400,6 +407,236 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Line Editor Fullscreen -->
+        <div t-if="state.showLineEditor" class="line_editor_screen">
+            <div class="line_editor_header">
+                <button
+                    class="btn btn-link barcode_close_btn"
+                    t-on-click="onCloseLineEditor"
+                    title="Close"
+                >
+                    <i class="fa fa-times fa-2x" />
+                </button>
+                <div class="barcode_header_title">
+                    <h2 class="barcode_title">Edit Line Details</h2>
+                </div>
+                <div style="width: 50px;" />
+            </div>
+
+            <div class="line_editor_body">
+                <!-- Product Info Section -->
+                <div class="line_editor_section">
+                    <h5 class="section_title">Product Information</h5>
+                    <div class="info_row">
+                        <span class="info_label">Code:</span>
+                        <span
+                            class="info_value"
+                            t-esc="state.lineEditorData.product_code || 'N/A'"
+                        />
+                    </div>
+                    <div class="info_row">
+                        <span class="info_label">Name:</span>
+                        <span
+                            class="info_value"
+                            t-esc="state.lineEditorData.product_name"
+                        />
+                    </div>
+                    <div class="info_row">
+                        <span class="info_label">Tracking:</span>
+                        <span class="info_value">
+                            <t t-if="state.lineEditorData.tracking === 'serial'">
+                                Serial Number
+                            </t>
+                            <t t-elif="state.lineEditorData.tracking === 'lot'">
+                                Lot
+                            </t>
+                            <t t-else="">
+                                None
+                            </t>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Lot/Serial Section -->
+                <div
+                    t-if="state.lineEditorData.tracking !== 'none'"
+                    class="line_editor_section"
+                >
+                    <h5 class="section_title">
+                        <t t-if="state.lineEditorData.tracking === 'serial'">
+                            Serial Number
+                        </t>
+                        <t t-else="">
+                            Lot
+                        </t>
+                    </h5>
+                    <div class="scan_field_display">
+                        <div class="scan_field_value">
+                            <i class="fa fa-barcode me-2" />
+                            <span
+                                t-esc="state.lineEditorData.lot_name || 'Not set'"
+                            />
+                        </div>
+                        <button
+                            t-if="state.lineEditorMode === 'view'"
+                            class="btn btn-primary scan_btn"
+                            t-on-click="() => this.onStartScanMode('lot')"
+                        >
+                            <i class="fa fa-qrcode me-2" />
+                            Scan
+                            <t t-if="state.lineEditorData.tracking === 'serial'">
+                                Serial
+                            </t>
+                            <t t-else="">
+                                Lot
+                            </t>
+                        </button>
+                        <button
+                            t-if="state.lineEditorMode === 'lot'"
+                            class="btn btn-warning scan_btn"
+                            t-on-click="onCancelScanMode"
+                        >
+                            <i class="fa fa-spinner fa-pulse me-2" />
+                            Waiting for scan...
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quantity Section -->
+                <div class="line_editor_section">
+                    <h5 class="section_title">Quantity</h5>
+                    <div class="qty_input_group">
+                        <label class="form-label">Picked Quantity:</label>
+                        <input
+                            type="number"
+                            class="form-control qty_input"
+                            t-att-value="state.lineEditorData.qty_picked"
+                            t-att-readonly="state.lineEditorData.tracking === 'serial'"
+                            t-on-input="onLineEditorQtyChange"
+                            step="0.01"
+                            min="0"
+                        />
+                        <span
+                            class="uom_label"
+                            t-esc="state.lineEditorData.product_uom_name"
+                        />
+                    </div>
+                    <div class="info_row mt-2">
+                        <span class="info_label">Demand:</span>
+                        <span class="info_value">
+                            <t t-esc="state.lineEditorData.move_demand" />
+                            <t t-esc="state.lineEditorData.product_uom_name" />
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Destination Location Section -->
+                <div class="line_editor_section">
+                    <h5 class="section_title">Destination Location</h5>
+                    <div class="scan_field_display">
+                        <div class="scan_field_value">
+                            <i class="fa fa-map-marker-alt me-2" />
+                            <span
+                                t-esc="state.lineEditorData.location_dest_name"
+                            />
+                        </div>
+                        <button
+                            t-if="state.lineEditorMode === 'view'"
+                            class="btn btn-primary scan_btn"
+                            t-on-click="() => this.onStartScanMode('location_dest')"
+                        >
+                            <i class="fa fa-qrcode me-2" />
+                            Scan Location
+                        </button>
+                        <button
+                            t-if="state.lineEditorMode === 'location_dest'"
+                            class="btn btn-warning scan_btn"
+                            t-on-click="onCancelScanMode"
+                        >
+                            <i class="fa fa-spinner fa-pulse me-2" />
+                            Waiting for scan...
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Package Section -->
+                <div class="line_editor_section">
+                    <h5 class="section_title">Source Package</h5>
+                    <div class="scan_field_display">
+                        <div class="scan_field_value">
+                            <i class="fa fa-box me-2" />
+                            <span
+                                t-esc="state.lineEditorData.package_name || 'Not set'"
+                            />
+                        </div>
+                        <button
+                            t-if="state.lineEditorMode === 'view'"
+                            class="btn btn-primary scan_btn"
+                            t-on-click="() => this.onStartScanMode('package')"
+                        >
+                            <i class="fa fa-qrcode me-2" />
+                            Scan Package
+                        </button>
+                        <button
+                            t-if="state.lineEditorMode === 'package'"
+                            class="btn btn-warning scan_btn"
+                            t-on-click="onCancelScanMode"
+                        >
+                            <i class="fa fa-spinner fa-pulse me-2" />
+                            Waiting for scan...
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Result Package Section -->
+                <div class="line_editor_section">
+                    <h5 class="section_title">Destination Package</h5>
+                    <div class="scan_field_display">
+                        <div class="scan_field_value">
+                            <i class="fa fa-box-open me-2" />
+                            <span
+                                t-esc="state.lineEditorData.result_package_name || 'Not set'"
+                            />
+                        </div>
+                        <button
+                            t-if="state.lineEditorMode === 'view'"
+                            class="btn btn-primary scan_btn"
+                            t-on-click="() => this.onStartScanMode('result_package')"
+                        >
+                            <i class="fa fa-qrcode me-2" />
+                            Scan Package
+                        </button>
+                        <button
+                            t-if="state.lineEditorMode === 'result_package'"
+                            class="btn btn-warning scan_btn"
+                            t-on-click="onCancelScanMode"
+                        >
+                            <i class="fa fa-spinner fa-pulse me-2" />
+                            Waiting for scan...
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="line_editor_footer">
+                <button
+                    class="btn btn-lg btn-secondary flex-fill me-2"
+                    t-on-click="onCloseLineEditor"
+                >
+                    <i class="fa fa-times me-2" />
+                    Cancel
+                </button>
+                <button
+                    class="btn btn-lg btn-primary flex-fill"
+                    t-on-click="onSaveLineEditor"
+                    t-att-disabled="state.lineEditorMode !== 'view'"
+                >
+                    <i class="fa fa-check me-2" />
+                    Save
+                </button>
             </div>
         </div>
     </t>
